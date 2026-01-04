@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Anti Wrapped</title>
+
+    <!-- Entrance font (minimal, used only for the loader title) -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        /* --- CORE VARS --- */
+        :root {
+            /* COOL LIGHT YELLOW THEME */
+            --glow-primary: #cfc211; /* Light, cool yellow */
+            --glow-core: #cfc211;    /* Almost white yellow */
+            --glow-accent: #cfc211;  /* Standard gold for contrast */
+            
+            --bg-color: #000000;     /* Pure black for contrast */
+            --text-white: #cfc211;
+        }
+        
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-white);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+            user-select: none;
+        }
+
+        /* --- PRELOADER / ENTRANCE --- */
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, rgba(0,0,0,0.92), rgba(0,0,0,0.7));
+            z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.8s ease-out;
+            pointer-events: auto;
+            text-align: center;
+            gap: 12px;
+        }
+        .spinner {
+            width: 56px; height: 56px; 
+            border: 3px solid rgba(255, 224, 102, 0.08);
+            border-top: 3px solid var(--glow-primary); 
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: 0 0 20px rgba(207,194,17,0.12);
+        }
+        .loader-text { 
+            color: var(--glow-primary);
+            /* slightly reduced size and spacing for a subtler header */
+            font-size: 10px; letter-spacing: 4px; font-weight: 700; text-transform: uppercase;
+            text-shadow: 0 0 8px rgba(207,194,17,0.9);
+        }
+        .intro-title {
+            font-family: 'Orbitron', Inter, sans-serif;
+            color: var(--glow-primary);
+            font-weight: 900;
+            /* smaller but still fun & readable */
+            font-size: clamp(14px, 3.2vw, 32px);
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            text-shadow:
+                0 0 10px rgba(207,194,17,0.95),
+                0 0 36px rgba(207,194,17,0.16),
+                0 8px 30px rgba(0,0,0,0.7);
+            margin-top: 6px;
+            animation: introPulse 2.8s ease-in-out infinite;
+        }
+        .intro-lines {
+            color: rgba(255,244,190,0.97);
+            font-weight: 600;
+            /* smaller, responsive, readable */
+            font-size: clamp(11px, 2.0vw, 13px);
+            line-height: 1.45;
+            letter-spacing: 0.2px;
+            max-width: 720px;
+            padding: 0 12px;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.65);
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes introPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); text-shadow: 0 0 20px rgba(207,194,17,1), 0 0 48px rgba(207,194,17,0.22); }
+            100% { transform: scale(1); }
+        }
+
+        /* --- UI ELEMENTS --- */
+        #bg-canvas { position: fixed; top: 0; left: 0; z-index: -2; pointer-events: none; display:block; }
+        
+        .brand-header {
+            position: absolute; top: max(30px, env(safe-area-inset-top)); 
+            width: 100%; text-align: center; pointer-events: none; z-index: 10;
+        }
+        .brand-header h1 {
+            font-size: 11px; letter-spacing: 5px; color: var(--glow-core); 
+            text-transform: uppercase; 
+            text-shadow: 0 0 25px rgba(255, 224, 102, 0.8); 
+            margin: 0; opacity: 1; font-weight: 700;
+        }
+
+        .quote-badge {
+            position: absolute; bottom: max(40px, env(safe-area-inset-bottom));
+            width: 100%; display: flex; justify-content: center; pointer-events: none; z-index: 10;
+        }
+        .quote-box {
+            background: rgba(10, 10, 10, 0.4); 
+            border: 1px solid rgba(255, 224, 102, 0.3);
+            box-shadow: 0 0 40px rgba(0,0,0,0.8), inset 0 0 20px rgba(255, 224, 102, 0.05);
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            padding: 12px 24px; border-radius: 50px; text-align: center;
+            max-width: 80%;
+        }
+        .quote-box p { 
+            margin: 0; font-size: 11px; color: #fff; 
+            font-style: italic; line-height: 1.5; font-weight: 400; text-shadow: 0 0 5px rgba(0,0,0,1);
+        }
+        .quote-box span { 
+            display: block; font-size: 9px; color: var(--glow-primary); 
+            margin-top: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px;
+            text-shadow: 0 0 10px var(--glow-accent);
+        }
+
+        /* --- GRAPH STYLES --- */
+        #graph { width: 100vw; height: 100vh; position: relative; z-index: 0; }
+
+        /* Idle Animation */
+        @keyframes breathe {
+            0% { filter: drop-shadow(0 0 0px rgba(255, 224, 102, 0)); stroke: rgba(255,255,255,0.1); }
+            50% { filter: drop-shadow(0 0 8px rgba(255, 224, 102, 0.3)); stroke: rgba(255, 224, 102, 0.5); }
+            100% { filter: drop-shadow(0 0 0px rgba(255, 224, 102, 0)); stroke: rgba(255,255,255,0.1); }
+        }
+
+        .node-circle {
+            stroke-width: 1.5px;
+            stroke: rgba(255, 255, 255, 0.15);
+            transition: all 0.3s ease-out;
+            animation: breathe 4s infinite ease-in-out;
+            cursor: pointer;
+        }
+
+        /* --- HOVER EFFECT: LIGHT UP --- */
+        .node-group:hover .node-circle, .node-group:active .node-circle {
+            transform: scale(1.2);
+            stroke: #e5e50d; 
+            stroke-width: 3px;
+            filter: drop-shadow(0 0 20px var(--glow-primary)) brightness(1.2);
+            z-index: 99;
+        }
+
+        .link {
+            stroke: var(--glow-primary);
+            stroke-opacity: 0.1;
+            stroke-width: 1px;
+            transition: stroke-opacity 0.3s, stroke-width 0.3s;
+        }
+        
+        .link.active {
+            stroke: #d7e610;
+            stroke-opacity: 0.8;
+            stroke-width: 2px;
+            filter: drop-shadow(0 0 8px var(--glow-primary));
+        }
+
+        /* Labels: yellow and bold; hidden by default on desktop, shown on hover.
+           On touch devices, labels are shown only when the node is touched (handled via JS). */
+        .label {
+            fill: var(--glow-primary);
+            /* slightly smaller and lighter weight for a cleaner look */
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.25px;
+            text-shadow: 0 0 6px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.9);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.15s ease;
+            transform-origin: center;
+        }
+        .node-group:hover .label, .node-group:active .label { opacity: 1; transform: translateY(-2px); pointer-events: none; }
+
+        @media (max-width: 520px) {
+            .label { font-size: 9px; /* keep JS-driven touch behaviour */ }
+            .brand-header h1 { font-size: 10px; letter-spacing: 4px; }
+            .intro-lines { font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- UPDATED LOADER: shows instructions and "RADIATING" — will display for 10s while assets load -->
+    <div id="loader" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <div class="loader-text">RADIATING</div>
+        <div class="intro-title">Interact with the bubbles</div>
+        <div class="intro-lines">
+            Desktop: hover to explore.
+            <br>Mobile: press & hold to explore.<br>
+            Click a bubble to visit the X profile. Have fun.
+        </div>
+    </div>
+    
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="brand-header"><h1>Anti Wrapped</h1></div>
+    <div class="quote-badge">
+        <div class="quote-box">
+            <p>“Investing in a good community is investing in yourself”</p>
+            <span>AntiOnChain</span>
+        </div>
+    </div>
+
+    <div id="graph"></div>
+
+    <script>
+        // --- DATA ---
+        const accounts = [
+            { id: "MakkuOnChain", type: "standout" }, { id: "CavanOnChain", type: "normal" },
+            { id: "ImDiDi6_6", type: "normal" }, { id: "CherieOnChain", type: "normal" },
+            { id: "KingSolNFTs1", type: "normal" }, { id: "PanosOnChain", type: "normal" },
+            { id: "CoryBOnChain", type: "normal" }, { id: "danisdriven", type: "normal" },
+            { id: "JohnOnChainX", type: "normal" }, { id: "GonzalitoSNFT", type: "normal" },
+            { id: "WaleedOnChain", type: "normal" }, { id: "NebOnChain", type: "normal" },
+            { id: "C3OnChain", type: "normal" }, { id: "ClickOnChain", type: "normal" },
+            { id: "JayConnects0", type: "normal" }, { id: "jhudmeta", type: "normal" },
+            { id: "DocOnChainX", type: "normal" }, { id: "DC_x18", type: "normal" },
+            { id: "selenemetax", type: "normal" }, { id: "DreamMetaX", type: "standout" },
+            { id: "doginaldogs", type: "medium" }, { id: "SolOnChain", type: "big" },
+            { id: "Shieldmetax", type: "standout" }, { id: "Kyrelmedia", type: "normal" },
+            { id: "BullBearsX", type: "medium" }, { id: "SOLxColors", type: "normal" },
+            { id: "APEOFTHEHILL", type: "normal" }, { id: "zonemeta", type: "normal" },
+            { id: "hineycoin", type: "normal" }, { id: "PalmAuraX", type: "normal" },
+            { id: "BKOnChain", type: "normal" }, { id: "BegoniaOnChain", type: "normal" },
+            { id: "ObieGeeOnChain", type: "normal" }, { id: "BigzMetaX", type: "normal" }
+        ];
+
+        const centerId = "AntiOnChain";
+        const nodes = [{ id: centerId, type: "center" }, ...accounts];
+        const links = accounts.map(a => ({ source: centerId, target: a.id }));
+
+        // helper flags & DPR-aware sizing for avatars
+        function isMobileScreen() { return window.innerWidth < 600; }
+        function DPR() { return Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1))); }
+
+        // --- PRELOAD ASSETS (optimized) ---
+        async function preloadAssets() {
+            // Enforce entrance visibility for 10 seconds while assets load.
+            const MIN_DISPLAY_MS = 10000; // 10 seconds
+            const mobile = isMobileScreen();
+            const dpr = DPR();
+            const avatarSize = mobile ? 80 * dpr : 120 * dpr;
+
+            const loadPromises = nodes.map(n => new Promise(r => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                if ('decoding' in img) img.decoding = 'async';
+                img.src = `https://unavatar.io/twitter/${n.id}?size=${avatarSize}`;
+                img.onload = () => r();
+                img.onerror = () => r();
+                // safety fallback per image
+                setTimeout(() => r(), 2000);
+            }));
+
+            // Wait for both: all images (attempted) and the minimum display time.
+            const minTimer = new Promise(res => setTimeout(res, MIN_DISPLAY_MS));
+            await Promise.all([Promise.all(loadPromises), minTimer]);
+
+            // fade out loader and start simulation
+            const loader = document.getElementById('loader');
+            loader.style.opacity = '0';
+            setTimeout(() => { try { loader.remove(); } catch(e){}; initSimulation(); }, 800);
+        }
+
+        // --- RADIATING PULSE BACKGROUND ---
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+
+        function resizeCanvas() {
+            width = window.innerWidth; height = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            canvas.width = Math.max(1, Math.floor(width * dpr));
+            canvas.height = Math.max(1, Math.floor(height * dpr));
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        // Pulse Object Class
+        class Pulse {
+            constructor() {
+                this.x = width / 2;
+                this.y = height / 2;
+                this.radius = 0;
+                this.maxRadius = Math.max(width, height) * 0.7;
+                this.speed = 1 + Math.random(); 
+                this.alpha = 0.6; // Start slightly visible
+                this.decay = 0.002;
+            }
+            update() { this.radius += this.speed; this.alpha -= this.decay; }
+            draw(ctx) {
+                if (this.alpha <= 0) return;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 224, 102, ${this.alpha * 0.5})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        let pulses = [];
+        let frame = 0;
+
+        function animateBg() {
+            ctx.clearRect(0, 0, width, height);
+
+            const glow = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, width * 0.6);
+            glow.addColorStop(0, "rgba(255, 224, 102, 0.15)");
+            glow.addColorStop(0.4, "rgba(255, 200, 0, 0.05)"); 
+            glow.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = glow;
+            ctx.fillRect(0, 0, width, height);
+
+            const addEvery = isMobileScreen() ? 220 : 90;
+            if (frame % addEvery === 0) pulses.push(new Pulse());
+
+            for (let i = pulses.length - 1; i >= 0; i--) {
+                pulses[i].update();
+                pulses[i].draw(ctx);
+                if (pulses[i].alpha <= 0 || pulses[i].radius > pulses[i].maxRadius) pulses.splice(i, 1);
+            }
+
+            frame++;
+            requestAnimationFrame(animateBg);
+        }
+
+        // --- D3 SIMULATION: lively but constrained and performant on mobile ---
+        function initSimulation() {
+            const mobile = isMobileScreen();
+            const svg = d3.select("#graph").append("svg")
+                .attr("width", width).attr("height", height)
+                .attr("viewBox", `0 0 ${width} ${height}`);
+
+            // per-node random phase for unique jitter
+            nodes.forEach(n => { n.phase = Math.random() * Math.PI * 2; });
+
+            // tune forces to be less aggressive on mobile for performance and smoother interactions
+            const linkDist = mobile ? 120 : 170;
+            const chargeStrength = mobile ? -350 : -780;
+            const centerStrength = mobile ? 0.03 : 0.06;
+
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(linkDist))
+                .force("charge", d3.forceManyBody().strength(chargeStrength))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("collide", d3.forceCollide().radius(d => getRad(d) + 20))
+                .force("x", d3.forceX(width / 2).strength(centerStrength))
+                .force("y", d3.forceY(height / 2).strength(centerStrength));
+
+            const dpr = DPR();
+            // request size hints in pattern hrefs so avatars used in patterns match preloaded size
+            const avatarSize = mobile ? 80 * dpr : 120 * dpr;
+
+            const defs = svg.append("defs");
+            nodes.forEach(n => {
+                defs.append("pattern").attr("id", "p-" + n.id)
+                    .attr("width", 1).attr("height", 1).attr("patternContentUnits", "objectBoundingBox")
+                    .append("image").attr("href", `https://unavatar.io/twitter/${n.id}?size=${avatarSize}`)
+                    .attr("width", 1).attr("height", 1).attr("preserveAspectRatio", "xMidYMid slice");
+            });
+
+            const linkLine = svg.append("g").selectAll("line")
+                .data(links).join("line").attr("class", "link");
+
+            const nodeGroup = svg.append("g").selectAll("g")
+                .data(nodes).join("g").attr("class", "node-group")
+                .call(d3.drag().on("start", dragStart).on("drag", dragging).on("end", dragEnd));
+
+            nodeGroup.append("circle")
+                .attr("r", d => getRad(d))
+                .attr("fill", d => `url(#p-${d.id})`)
+                .attr("class", "node-circle");
+
+            nodeGroup.append("text")
+                .attr("class", "label").attr("text-anchor", "middle")
+                .attr("dy", d => getRad(d) + 20)
+                .text(d => d.type === "center" ? "" : d.id); // names (no '@')
+
+            // Interaction:
+            // - hover on desktop shows label (CSS)
+            // - on touch, show the label for that node only for a short time (JS) — prevents all labels showing
+            nodeGroup
+                .on("mouseover touchstart", highlight)
+                .on("mouseout touchend", reset)
+                .on("click", (e, d) => window.open(`https://x.com/${d.id}`, '_blank'));
+
+            // touch-specific behavior: show label on touchstart for that node only (press & hold behavior)
+            nodeGroup.on("touchstart", function(event, d) {
+                // prevent default double-tap/zoom
+                event.preventDefault && event.preventDefault();
+                const g = d3.select(this);
+                // clear previous timeout if any
+                if (d._labelTO) clearTimeout(d._labelTO);
+                // require press & hold: show after 300ms
+                d._labelTO = setTimeout(() => {
+                    g.select('.label').transition().duration(120).style('opacity', 1);
+                    d._hideTO = setTimeout(() => g.select('.label').transition().duration(220).style('opacity', 0), 2200);
+                }, 300);
+            }).on("touchend touchcancel", function(event, d) {
+                if (d._labelTO) { clearTimeout(d._labelTO); d._labelTO = null; }
+                if (d._hideTO) { clearTimeout(d._hideTO); d._hideTO = null; d3.select(this).select('.label').transition().duration(180).style('opacity', 0); }
+            });
+
+            function highlight(e, d) {
+                if (d.id === centerId) {
+                    linkLine.classed("active", true);
+                } else {
+                    linkLine.classed("active", l => l.source.id === d.id || l.target.id === d.id);
+                }
+            }
+            function reset() { linkLine.classed("active", false); }
+
+            // make nodes feel alive: small periodic jitter applied to velocity;
+            // always clamp positions so nodes never escape viewport (good for mobile & desktop)
+            simulation.on("tick", () => {
+                const t = Date.now();
+                const mobileNow = isMobileScreen();
+
+                nodes.forEach(d => {
+                    const baseAmp = mobileNow ? 0.45 : 1.2; // quieter on mobile
+                    const typeScale = d.type === 'center' ? 0.08 : d.type === 'big' ? 1.1 : d.type === 'standout' ? 0.95 : d.type === 'medium' ? 0.8 : 0.65;
+                    const amp = baseAmp * typeScale;
+                    const jitterX = Math.sin((t * 0.0018) + d.phase) * amp;
+                    const jitterY = Math.cos((t * 0.0014) + d.phase) * (amp * 0.6);
+
+                    if (d.fx == null && d.fy == null) {
+                        d.vx = (d.vx || 0) + jitterX * 0.02;
+                        d.vy = (d.vy || 0) + jitterY * 0.02;
+                    }
+
+                    // Clamp positions with padding to stop bubbles escaping
+                    const pad = getRad(d) + 8;
+                    d.x = Math.max(pad, Math.min(window.innerWidth - pad, d.x));
+                    d.y = Math.max(pad, Math.min(window.innerHeight - pad, d.y));
+                });
+
+                linkLine
+                    .attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+                nodeGroup.attr("transform", d => `translate(${d.x},${d.y})`);
+            });
+
+            function dragStart(e, d) { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; }
+            function dragging(e, d) { d.fx = e.x; d.fy = e.y; }
+            function dragEnd(e, d) { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }
+        }
+
+        // --- UTILS ---
+        function getRad(d) {
+            const isMobile = isMobileScreen();
+            const base = isMobile ? 0.6 : 0.9;
+            if (d.type === "center") return 55 * base;
+            if (d.type === "big") return 44 * base;
+            if (d.type === "standout") return 36 * base;
+            if (d.type === "medium") return 28 * base;
+            return 22 * base;
+        }
+
+        // Init
+        window.addEventListener('resize', () => { resizeCanvas(); });
+        function resizeCanvas(){ width = window.innerWidth; height = window.innerHeight; const dpr = window.devicePixelRatio || 1; const canvasEl = document.getElementById('bg-canvas'); canvasEl.style.width = width + 'px'; canvasEl.style.height = height + 'px'; canvasEl.width = Math.max(1, Math.floor(width * dpr)); canvasEl.height = Math.max(1, Math.floor(height * dpr)); const c = canvasEl.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); }
+        resizeCanvas();
+        animateBg();
+        preloadAssets();
+
+    </script>
+
+    <script>
+    // Enhanced golden background overlay with mobile-friendly density (unchanged behavior,
+    // but reduced density & frequency on mobile to keep interactions snappy)
+    (function () {
+      const existing = document.getElementById('bg-canvas');
+      const overlay = document.createElement('canvas');
+      overlay.id = 'bg-enhanced-canvas';
+      overlay.style.position = 'fixed';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.width = '100%';
+      overlay.style.height = '100%';
+      overlay.style.zIndex = '-1';
+      overlay.style.pointerEvents = 'none';
+      document.body.appendChild(overlay);
+
+      const ctx = overlay.getContext('2d', { alpha: true });
+      let width = 0, height = 0, DPR = 1;
+
+      function resize() {
+        DPR = Math.min(2, Math.max(1, Math.round(window.devicePixelRatio || 1)));
+        width = window.innerWidth; height = window.innerHeight;
+        overlay.style.width = width + 'px';
+        overlay.style.height = height + 'px';
+        overlay.width = Math.max(1, Math.floor(width * DPR));
+        overlay.height = Math.max(1, Math.floor(height * DPR));
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      const css = getComputedStyle(document.documentElement);
+      const glowPrimary = (css.getPropertyValue('--glow-primary') || '#cfc211').trim();
+
+      function hexToRgb(hex) {
+        const h = hex.replace('#', '').trim();
+        const bigint = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+        const r = (bigint >> 16) & 255;
+        const g = (bigint >> 8) & 255;
+        const b = bigint & 255;
+        return `${r}, ${g}, ${b}`;
+      }
+
+      // particle/pulse classes (same as before)
+      class Particle {
+        constructor() { this.reset(); }
+        reset() {
+          this.x = Math.random() * width;
+          this.y = Math.random() * height;
+          this.vx = (Math.random() - 0.5) * 0.12;
+          this.vy = -0.02 - Math.random() * 0.12;
+          this.r = 0.6 + Math.random() * 1.6;
+          this.a = 0.02 + Math.random() * 0.08;
+        }
+        update() { this.x += this.vx; this.y += this.vy; if (this.y < -10 || this.x < -10 || this.x > width + 10) this.reset(); }
+        draw(ctx) { ctx.beginPath(); ctx.fillStyle = `rgba(${hexToRgb(glowPrimary)}, ${this.a})`; ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill(); }
+      }
+
+      class Pulse {
+        constructor(opts = {}) {
+          this.x = opts.x ?? width/2 + (Math.random()-0.5)*120;
+          this.y = opts.y ?? height/2 + (Math.random()-0.5)*80;
+          this.r = opts.start ?? 6 + Math.random()*10;
+          this.max = opts.max ?? Math.max(width, height) * (0.55 + Math.random()*0.6);
+          this.speed = opts.speed ?? 0.8 + Math.random()*2.2;
+          this.alpha = opts.alpha ?? 0.12 + Math.random()*0.5;
+          this.line = opts.line ?? 1 + Math.random()*3;
+          this.color = opts.color ?? glowPrimary;
+          this.fade = opts.fade ?? 0.0009 + Math.random()*0.002;
+          this.phase = Math.random() * 2 * Math.PI;
+        }
+        update(t) { this.r += this.speed; this.alpha -= this.fade; this.x += Math.sin((t + this.phase)*0.0005) * 0.3; this.y += Math.cos((t + this.phase)*0.00045) * 0.3; }
+        draw(ctx) { if (this.alpha <= 0) return; ctx.beginPath(); ctx.arc(this.x, this.y, Math.max(0, this.r), 0, Math.PI*2); ctx.strokeStyle = `rgba(${hexToRgb(this.color)}, ${Math.max(0, this.alpha)})`; ctx.lineWidth = this.line; ctx.shadowBlur = Math.min(40, this.line*8); ctx.shadowColor = this.color; ctx.globalCompositeOperation = 'lighter'; ctx.stroke(); ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'source-over'; }
+      }
+
+      const particles = [];
+      const pulses = [];
+      let frame = 0;
+
+      function seedParticles(n) {
+        particles.length = 0;
+        const cap = Math.min(120, Math.max(20, n)); // lower cap so mobile stays snappy
+        for (let i = 0; i < cap; i++) particles.push(new Particle());
+      }
+      // lower density on mobile
+      const areaFactor = window.innerWidth < 600 ? 35000 : 15000;
+      seedParticles(Math.floor((width*height)/areaFactor));
+
+      function animate(t) {
+        frame++;
+        ctx.clearRect(0,0,width,height);
+
+        const cx = width/2 + Math.sin(t*0.00012) * (width*0.03);
+        const cy = height/2 + Math.cos(t*0.00011) * (height*0.02);
+        const baseRadius = Math.max(width, height) * 0.9;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius);
+        grad.addColorStop(0, `rgba(${hexToRgb(glowPrimary)}, 0.12)`);
+        grad.addColorStop(0.25, `rgba(${hexToRgb(glowPrimary)}, 0.05)`);
+        grad.addColorStop(0.6, 'rgba(0,0,0,0.02)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,width,height);
+
+        const addEvery = (window.innerWidth < 600) ? 300 : 90; // much slower on mobile
+        if (frame % addEvery === 0) pulses.push(new Pulse({ color: glowPrimary }));
+        if (frame % (addEvery*6) === 0) pulses.push(new Pulse({ start: 2 + Math.random()*6, speed: 2 + Math.random()*3, alpha: 0.18 + Math.random()*0.6 }));
+
+        for (let i = pulses.length - 1; i >= 0; i--) {
+          pulses[i].update(t);
+          pulses[i].draw(ctx);
+          if (pulses[i].alpha <= 0 || pulses[i].r > pulses[i].max) pulses.splice(i,1);
+        }
+
+        for (let i = 0; i < particles.length; i++) {
+          particles[i].update();
+          particles[i].draw(ctx);
+        }
+
+        if (Math.random() < 0.04) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = `rgba(${hexToRgb(glowPrimary)}, 0.02)`;
+          ctx.lineWidth = 1;
+          const sx = Math.random() * width;
+          const sy = Math.random() * height;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy);
+          ctx.lineTo(sx + (Math.random()*200 - 100), sy - (50 + Math.random()*200));
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      requestAnimationFrame(animate);
+
+      window.addEventListener('resize', function() {
+        const areaFactorNow = window.innerWidth < 600 ? 35000 : 15000;
+        seedParticles(Math.floor((window.innerWidth*window.innerHeight)/areaFactorNow));
+        resize();
+      });
+
+    })();
+    </script>
+
+</body>
+</html>
